@@ -98,7 +98,7 @@ public struct ButtonLoad<T: Decodable>: View {
     private let type: T.Type
     private let handler: (T) -> Void 
     @State private var showDoc = false
-    init(_ text: String, bookmark: String = "", fileName: String, type: T.Type, handler: @escaping (T) -> Void) {
+    public init(_ text: String, bookmark: String = "", fileName: String, type: T.Type, handler: @escaping (T) -> Void) {
         self.buttonText = text
         self.bookmark = bookmark == "" ? fileName : bookmark
         self.fileName = fileName
@@ -135,7 +135,7 @@ public struct ButtonSave<T: Encodable>: View {
     private let handler: () -> T?
     private let holder = ObjHolder<T>()
     @State private var showDoc = false
-    init(_ text: String, bookmark: String = "", fileName: String, handler: @escaping () -> T?) {
+    public init(_ text: String, bookmark: String = "", fileName: String, handler: @escaping () -> T?) {
         self.buttonText = text
         self.bookmark = bookmark == "" ? fileName : bookmark
         self.fileName = fileName
