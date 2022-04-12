@@ -1,4 +1,3 @@
-//EZIO 0.1.0, Apr 2022, https://github.com/trochoid/EZIO.git
 import SwiftUI
 
 public class EZIO {
