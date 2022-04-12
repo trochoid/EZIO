@@ -91,7 +91,7 @@ public class EZIO {
 //==================================================( Button IO )=====
 //====================================================================
 
-struct ButtonLoad<T: Decodable>: View {
+public struct ButtonLoad<T: Decodable>: View {
     private let buttonText: String
     private let bookmark: String
     private let fileName: String
@@ -105,7 +105,7 @@ struct ButtonLoad<T: Decodable>: View {
         self.type = type
         self.handler = handler
     }
-    var body: some View {
+    public var body: some View {
         Button(buttonText, action: clicked)
             .sheet(isPresented: $showDoc) { DocPicker(handleSelectedFolder) }
     }
@@ -128,7 +128,7 @@ struct ButtonLoad<T: Decodable>: View {
 }
 
 
-struct ButtonSave<T: Encodable>: View {
+public struct ButtonSave<T: Encodable>: View {
     private let buttonText: String
     private let bookmark: String
     private let fileName: String
@@ -141,7 +141,7 @@ struct ButtonSave<T: Encodable>: View {
         self.fileName = fileName
         self.handler = handler
     }
-    var body: some View {
+    public var body: some View {
         Button(buttonText, action: clicked)
             .sheet(isPresented: $showDoc) { DocPicker(handleSelectedFolder) }
     }
