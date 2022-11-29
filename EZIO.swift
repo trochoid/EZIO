@@ -1,297 +1,342 @@
-//EZIO 0.0.5, April 27 2022
 import SwiftUI
+import UniformTypeIdentifiers
 
-public class EZIO {
+
+
+class EZIO { 
     
-    public private(set) static var lastError: String?
-    public static var lastErrorText: String { lastError ?? "no error" }
-    fileprivate static func resetError() { lastError = nil }
-    fileprivate static func appendError(_ errText: String) {
-        if let s = lastError {
-            lastError = s + "\n" + errText
-        } else {
-            lastError = errText
+    private init() {}
+    
+    //    root local
+    public static func documents(fileName: String = "") -> URL {
+        var doc = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        if fileName != "" { doc = doc.appendingPathComponent(fileName) }
+        return doc
+    }
+    
+    //    String <-> URL
+    @discardableResult
+    public static func saveStringToURL(string: String, url: URL, encoding: String.Encoding = .utf8) -> Bool {
+        do {
+            try string.write(to: url, atomically: true, encoding: encoding)
+            return true
+        } catch {
+            print("failed writing string to file")
+            return false
+        }
+    }
+    public static func getStringFromURL(url: URL, encoding: String.Encoding = .utf8) -> String? { 
+        do {
+            return try String(contentsOf: url, encoding: encoding)
+        } catch {
+            print("failed getting string from file")
+            return nil
         }
     }
     
-    private static func flatCodingPath(_ path: [CodingKey]) -> String {
-        "path...\n" + path.map{ $0.debugDescription }.joined(separator: "\n")
+    //    Data <-> URL
+    @discardableResult
+    public static func saveDataToURL(data: Data, url: URL) -> Bool {
+        do {
+            try data.write(to: url, options: [.atomic])
+            return true
+        } catch {
+            print("failed writing data to file")
+            return false
+        }
     }
-    
-    private static func storeError(_ err: Error) {
-        switch err {
-        case let EncodingError.invalidValue(obj, context):
-            var sa = ["EncodingError.invalidValue"]
-            sa.append(err.localizedDescription)
-            sa.append("value: \(obj), type: \(type(of: obj))")
-            sa.append(flatCodingPath(context.codingPath))
-            sa.append("debugDescription: \(context.debugDescription)")
-            lastError = sa.joined(separator: "\n")
-        case let DecodingError.dataCorrupted(context):
-            var sa = ["DecodingError.dataCorrupted"]
-            sa.append(err.localizedDescription)
-            sa.append("debugDescription: \(context.debugDescription)")
-            sa.append(flatCodingPath(context.codingPath))
-            lastError = sa.joined(separator: "\n")
-        case let DecodingError.keyNotFound(key, context):
-            var sa = ["DecodingError.keyNotFound"]
-            sa.append(err.localizedDescription)
-            sa.append("key: \(key.debugDescription)")
-            sa.append("debugDescription: \(context.debugDescription)")
-            sa.append(flatCodingPath(context.codingPath))
-            lastError = sa.joined(separator: "\n")
-        case let DecodingError.typeMismatch(type, context):
-            var sa = ["DecodingError.typeMismatch"]
-            sa.append(err.localizedDescription)
-            sa.append("type: \(type)")
-            sa.append("debugDescription: \(context.debugDescription)")
-            sa.append(flatCodingPath(context.codingPath))
-            lastError = sa.joined(separator: "\n")
-        case let DecodingError.valueNotFound(type, context):
-            var sa = ["DecodingError.valueNotFound"]
-            sa.append(err.localizedDescription)
-            sa.append("type: \(type)")
-            sa.append("debugDescription: \(context.debugDescription)")
-            sa.append(flatCodingPath(context.codingPath))
-            lastError = sa.joined(separator: "\n")
-        default:
-            lastError = "unknown error"
+    public static func getDataFromURL(url: URL) -> Data? { 
+        do {
+            return try Data(contentsOf: url)
+        } catch {
+            print("failed getting data from file")
+            return nil
         }
     }
     
-    private static func makeData<T: Encodable>(obj: T, pretty: Bool = false) -> Data? {
-        resetError()
-        if let d = obj as? Data { return d }
-        let encoder = JSONEncoder()
-        if pretty { encoder.outputFormatting = .prettyPrinted }
-        do { return try encoder.encode(obj) } 
-        catch { storeError(error); return nil }
+    //    Codable <-> URL
+    @discardableResult
+    public static func saveCodableToURL<T: Encodable>(obj: T, url: URL, pretty: Bool = false) -> Bool {
+        do {
+            let encoder = JSONEncoder()
+            if pretty { encoder.outputFormatting = .prettyPrinted }
+            let data = try encoder.encode(obj)
+            try data.write(to: url, options: [.atomic])
+            return true
+        } catch {
+            print("failed writing codable to file")
+            return false
+        }
+    }
+    public static func getCodableFromURL<T: Decodable>(url: URL, type: T.Type) -> T? { 
+        do {
+            let data = try Data(contentsOf: url)
+            return try JSONDecoder().decode(type, from: data)
+        } catch {
+            print("failed getting codable from file")
+            return nil
+        }
     }
     
-    private static func makeObj<T: Decodable>(data: Data, type: T.Type) -> T? {
-        resetError()
-        if type == Data.self { return data as? T }
-        do { return try JSONDecoder().decode(type, from: data) } 
-        catch { storeError(error); return nil }
+    //    Codable <-> Data
+    public static func transformCodableToData<T: Encodable>(obj: T, pretty: Bool = false) -> Data? {
+        do {
+            let encoder = JSONEncoder()
+            if pretty { encoder.outputFormatting = .prettyPrinted }
+            return try encoder.encode(obj)
+        } catch {
+            print("failed transforming codable to data")
+            return nil
+        }
+    }
+    public static func transformDataToCodable<T: Decodable>(data: Data, type: T.Type) -> T? {
+        do {
+            return try JSONDecoder().decode(type, from: data)
+        } catch {
+            print("failed transforming data to codable")
+            return nil
+        }
     }
     
-    public static func storeObj<T: Encodable>(obj: T, key: String) -> Bool {
-        guard let data = makeData(obj: obj) else { return false }
+    //    URL <-> bookmark Data (assume security access)
+    public static func makeBookmark(url: URL) -> Data? { 
+        do {
+            return try url.bookmarkData(
+                options: .minimalBookmark, 
+                includingResourceValuesForKeys: nil, 
+                relativeTo: nil)
+        } catch {
+            print("failed making bookmark")
+            return nil
+        }
+    }
+    public static func loadBookmark(data: Data) -> (url: URL?, stale: Bool)  {
+        do {
+            var stale = false
+            let url = try URL(resolvingBookmarkData: data, bookmarkDataIsStale: &stale)
+            return (url: url, stale: stale)
+        } catch {
+            print("failed loading url from bookmark data")
+            return (url: nil, stale: false)
+        }
+    }
+    
+    //    Data <-> UserDefaults
+    public static func saveDataToUserDefault(data: Data, key: String) {
         UserDefaults.standard.set(data, forKey: key)
+    }
+    public static func getDataFromUserDefault(key: String) -> Data? { 
+        UserDefaults.standard.data(forKey: key)
+    }
+    
+    //    URL <-> UserDefaults (bookmark convenience)
+    @discardableResult
+    public static func saveURLToUserDefaults(url: URL, key: String) -> Bool {
+        guard let bmData = EZIO.makeBookmark(url: url) else { return false }
+        EZIO.saveDataToUserDefault(data: bmData, key: key) 
         return true
     }
-    
-    public static func loadObj<T: Decodable>(type: T.Type, key: String) -> T? {
-        guard let data = UserDefaults.standard.data(forKey: key) else { 
-            lastError = "EZIO.loadObj Error: UserDefaults key not found"; return nil }
-        guard let obj = makeObj(data: data, type: type) else { return nil }
-        return obj
+    public static func getURLFromUserDefaults(key: String) -> (url: URL?, stale: Bool) {
+        guard let bmData = EZIO.getDataFromUserDefault(key: key) else { return (nil, false) }
+        return EZIO.loadBookmark(data: bmData)
     }
     
-    public static func toJSONText<T: Encodable>(obj: T, pretty: Bool = true) -> String {
-        guard let data = makeData(obj: obj, pretty: pretty) else { return "toJSONText makeData err" }
-        guard let s = String(data: data, encoding: .utf8) else { 
-            lastError = "toJSONText String() err"; return lastErrorText }
-        return s
+    //    security access
+    public static func accessSecure(url: URL, action: () -> (), failedAccess: (() -> ())? = nil ) {
+        guard url.startAccessingSecurityScopedResource() else { failedAccess?(); return }
+        action()
+        url.stopAccessingSecurityScopedResource()
     }
     
-    public static func fromJSONText<T: Decodable>(type: T.Type, json: String) -> T? {
-        guard let data = json.data(using: .utf8) else { 
-            lastError = "fromJSONText Data() err"; return nil }
-        return makeObj(data: data, type: type)
+//    url info/actions
+    public static func exists(url: URL) -> Bool {
+        FileManager.default.fileExists(atPath: url.path)
     }
-    
-    //-- external file help
-    
-    fileprivate static func storeBookmarkData(url: URL, bookmarkKey: String) -> Bool {
-        guard url.startAccessingSecurityScopedResource() else { appendError("no start secure"); return false }
-        defer { url.stopAccessingSecurityScopedResource() }
+    @discardableResult
+    public static func delete(url: URL) -> Bool {
         do {
-            let bmData = try url.bookmarkData(
-                options: .minimalBookmark, includingResourceValuesForKeys: nil, relativeTo: nil)
-            UserDefaults.standard.set(bmData, forKey: bookmarkKey)
-        } catch let err { appendError("couldn't create bookmark\n\(err)"); return false }
-        return true
-    }
-    
-    public static func removeBookmark(key: String) {
-        UserDefaults.standard.removeObject(forKey: key)
-    }
-    
-    fileprivate static func getUnstaleFolder(bookmarkKey: String) -> URL? {
-        guard let bmData = UserDefaults.standard.data(forKey: bookmarkKey) else { return nil }
-        var isStale = false
-        let folder: URL
-        do {
-            folder = try URL(resolvingBookmarkData: bmData, bookmarkDataIsStale: &isStale)
-        } catch { 
-            EZIO.appendError("getUnstaleFolder: didn't resolve url"); return nil }
-        if isStale { return nil }
-        return folder
-        
-    }
-    
-    fileprivate static func getObjFromSecuredFolder<T: Decodable>
-    (folder: URL, fileName: String, type: T.Type) -> T? {
-        guard folder.startAccessingSecurityScopedResource() else { 
-            appendError("getObjFromSecuredFolder: not start secure"); return nil }
-        defer { folder.stopAccessingSecurityScopedResource() }
-        do {
-            let f = folder.appendingPathComponent(fileName)
-            let d = try Data(contentsOf: f)
-            let obj = try JSONDecoder().decode(type, from: d)
-            return obj
-        } catch { appendError("getObjFromSecuredFolder: failed decoding"); return nil }
-    }
-    
-    fileprivate static func saveObjInSecuredFolder<T: Encodable>
-    (folder: URL, fileName: String, obj: T) -> Bool {
-        guard folder.startAccessingSecurityScopedResource() else { 
-            appendError("saveObjInSecuredFolder: no start secure"); return false }
-        defer { folder.stopAccessingSecurityScopedResource() }
-        do {
-            let file = folder.appendingPathComponent(fileName)
-            let d = try JSONEncoder().encode(obj)
-            try d.write(to: file)
-        } catch { appendError("saveObjInSecuredFolder: failed encoding"); return false }
-        return true
-    }
-    
-}
-
-//====================================================================
-//==================================================( Button IO )=====
-//====================================================================
-
-public struct ButtonLoad<T: Decodable>: View {
-    private let buttonText: String
-    private let bookmark: String
-    private let fileName: String
-    private let type: T.Type
-    private let handler: (T) -> Void
-    private let errHandler: (() -> Void)?
-    @State private var showDoc = false
-    public init(_ text: String, bookmark: String = "", fileName: String, type: T.Type, 
-                handler: @escaping (T) -> Void, error: (() -> Void)? = nil) {
-        self.buttonText = text
-        self.bookmark = bookmark == "" ? fileName : bookmark
-        self.fileName = fileName
-        self.type = type
-        self.handler = handler
-        self.errHandler = error
-    }
-    public var body: some View {
-        Button(buttonText, action: clicked)
-            .sheet(isPresented: $showDoc) { DocPicker(handleSelectedFolder) }
-    }
-    private func clicked() {
-        EZIO.resetError()
-        guard let folder = EZIO.getUnstaleFolder(bookmarkKey: bookmark) else { showDoc = true; return }
-        loadAndPass(folder: folder)
-    }
-    private func handleSelectedFolder(urls: [URL]) {
-        if urls.count == 0 { return } //cancelled
-        let folder = urls[0]
-        loadAndPass(folder: folder)
-    }
-    private func loadAndPass(folder: URL) {
-        guard let obj = EZIO.getObjFromSecuredFolder(folder: folder, fileName: fileName, type: type)
-        else { invokeError("failed loading obj from folder"); return }
-        handler(obj)
-        guard EZIO.storeBookmarkData(url: folder, bookmarkKey: bookmark) 
-        else { invokeError("failed storing bookmark"); return }
-    }
-    private func invokeError(_ msg: String) {
-        EZIO.appendError(msg)
-        if let err = errHandler { err() }
-    }
-    
-}
-
-
-public struct ButtonSave<T: Encodable>: View {
-    private let buttonText: String
-    private let bookmark: String
-    private let fileName: String
-    private let handler: () -> T?
-    private let errHandler: (() -> Void)?
-    private let holder = ObjHolder<T>()
-    @State private var showDoc = false
-    public init(_ text: String, bookmark: String = "", fileName: String, 
-                handler: @escaping () -> T?, error: (() -> Void)? = nil) {
-        self.buttonText = text
-        self.bookmark = bookmark == "" ? fileName : bookmark
-        self.fileName = fileName
-        self.handler = handler
-        self.errHandler = error
-    }
-    public var body: some View {
-        Button(buttonText, action: clicked)
-            .sheet(isPresented: $showDoc) { DocPicker(handleSelectedFolder) }
-    }
-    private func clicked() {
-        EZIO.resetError()
-        guard let obj = handler() else { return } //user skipped
-        if let folder = EZIO.getUnstaleFolder(bookmarkKey: bookmark) {
-            getAndSave(obj: obj, folder: folder)
-        } else {
-            holder.obj = obj //retain, only needed when using sheet
-            showDoc = true
+            try FileManager.default.removeItem(at: url)
+            return true
+        } catch {
+            print("failed deleting")
+            return false
         }
     }
-    private func handleSelectedFolder(urls: [URL]) {
-        defer { holder.obj = nil } //nil this when all over
-        if urls.count == 0 { return } //user cancelled
-        guard let obj = holder.obj else { invokeError("holder.obj nil somehow"); return }
-        let folder = urls[0]
-        getAndSave(obj: obj, folder: folder) //try to save it
+    public static func byteSize(url: URL) -> Int64 { 
+        guard let attr = try? FileManager.default.attributesOfItem(atPath: url.path)
+        else { print("couldn't get attributes"); return -1 }
+        guard let bytes = attr[.size] as? Int64 
+        else { print("no size???"); return -1 }
+        return bytes
     }
-    private func getAndSave(obj: T, folder: URL) {
-        guard EZIO.saveObjInSecuredFolder(folder: folder, fileName: fileName, obj: obj) 
-        else { invokeError("didn't save in folder"); return }
-        guard EZIO.storeBookmarkData(url: folder, bookmarkKey: bookmark) 
-        else { invokeError("didn't store bookmark"); return }
+    public static func isFolder(url: URL) -> Bool { 
+        do {
+            let rValues = try url.resourceValues(forKeys: [.isDirectoryKey])
+            return rValues.isDirectory ?? false
+        } catch {
+            return false
+        }
     }
-    private func invokeError(_ msg: String) {
-        EZIO.appendError(msg)
-        if let err = errHandler { err() }
-    }
-    private class ObjHolder<T: Encodable> { var obj: T? }
+    
 }
 
-//====================================================================
-//=============================( UIDocumentPickerViewController )=====
-//====================================================================
 
-private typealias Context = UIViewControllerRepresentableContext
-private typealias Controller = UIDocumentPickerViewController
 
-private struct DocPicker: UIViewControllerRepresentable {
-    private var docDel: DocDelegate
-    init(_ callBack: @escaping ([URL]) -> Void) { 
-        docDel = DocDelegate(callBack) }
-    func makeUIViewController(context: Context<DocPicker>) -> Controller {
-        let controller = Controller(forOpeningContentTypes: [.folder])
-        controller.delegate = docDel
-        return controller }
-    func updateUIViewController(_ uiViewController: Controller, context: Context<DocPicker>) {}
+//============================================================
+//============================================================
+//============================================================
+
+    
+
+public struct EZIOLoadButton: View {
+    
+    private let title: LocalizedStringKey
+    private let bookmarkKey: String
+    private let allowedTypes: [UTType]
+    private let action: (URL) -> ()
+    
+    init(
+        _ title: LocalizedStringKey, 
+        bookmarkKey: String = "", 
+        types: [UTType] = [.folder], 
+        action: @escaping (URL) -> ()
+    ) {
+        self.title = title
+        self.bookmarkKey = bookmarkKey
+        self.allowedTypes = types
+        self.action = action
+    }
+    
+    @State private var showSheet = false
+    
+    public var body: some View {
+        Button(title, action: clicked)
+            .fileImporter(
+                isPresented: $showSheet, 
+                allowedContentTypes: allowedTypes,
+                onCompletion: handleSheet)
+    }
+    
+    private func clicked() {
+        if bookmarkKey == "" {
+            showSheet = true
+        } else {
+            let result = EZIO.getURLFromUserDefaults(key: bookmarkKey)
+            if let url = result.url {
+                callAction(url: url, storeBookmark: result.stale)
+            } else {
+                showSheet = true
+            }
+        }
+    }
+    
+    private func handleSheet(result: Result<URL, Error>) {
+        switch result {
+        case .success(let url): callAction(url: url, storeBookmark: true)
+        case .failure(let error): print("error: \(error)")
+        }
+    }
+    
+    private func callAction(url: URL, storeBookmark: Bool) {
+        EZIO.accessSecure(url: url) { 
+            action(url) 
+            if (bookmarkKey != "") && storeBookmark {
+                let success = EZIO.saveURLToUserDefaults(url: url, key: bookmarkKey)
+                if !success { print("**** failed saving bookmark") }
+            }
+        }
+    }
+    
 }
 
-private class DocDelegate: NSObject, UIDocumentPickerDelegate {
-    private let callBack: ([URL]) -> Void
-    init(_ callBack: @escaping ([URL]) -> Void) { 
-        self.callBack = callBack }
-    func documentPicker(_ controller: Controller, didPickDocumentsAt urls: [URL]) {
-        callBack(urls) }
-    func documentPickerWasCancelled(_ controller: Controller) {
-        callBack([]) }
+
+//============================================================
+
+
+public struct EZIOSaveButton: View {
+    
+    private let title: LocalizedStringKey
+    private let defaultFilename: String
+    private let bookmarkKey: String
+    private let docType: UTType
+    private let action: (URL) -> ()
+    
+    init(
+        _ title: LocalizedStringKey,
+        defaultFilename: String,
+        bookmarkKey: String = "", 
+        type: UTType = .item, 
+        action: @escaping (URL) -> ()
+    ) {
+        self.title = title
+        self.defaultFilename = defaultFilename
+        self.bookmarkKey = bookmarkKey
+        self.docType = type
+        self.action = action
+    }
+    
+    @State private var showSheet = false
+    private let doc = EZExporterDoc()
+    
+    public var body: some View {
+        Button(title, action: clicked)
+            .fileExporter(
+                isPresented: $showSheet, 
+                document: doc, 
+                contentType: docType, 
+                defaultFilename: defaultFilename,
+                onCompletion: handleSheet)
+    }
+    
+    private func clicked() {
+        doc.prepForWriting(forType: docType)
+        showSheet = true
+    }
+    
+    private func handleSheet(result: Result<URL, Error>) {
+        switch result {
+        case .success(let url): callAction(url: url)
+        case .failure(let error): print("error: \(error)")
+        }
+    }
+    
+    private func callAction(url: URL) {
+        EZIO.accessSecure(url: url) { 
+            action(url) 
+            if (bookmarkKey != "") {
+                let success = EZIO.saveURLToUserDefaults(url: url, key: bookmarkKey)
+                if !success { print("**** failed saving bookmark") }
+            }
+        }
+    }
+    
+    private struct EZExporterDoc: FileDocument {
+        static var readableContentTypes = [UTType.item]
+        init() {}
+        init(configuration: ReadConfiguration) throws {}
+        func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+            if EZExporterDoc.readableContentTypes == [.folder] {
+                return FileWrapper(directoryWithFileWrappers: [:])
+            } else {
+                return FileWrapper(regularFileWithContents: Data())
+            }
+        }
+        func prepForWriting(forType: UTType) {
+            EZExporterDoc.readableContentTypes = [forType]
+        }
+    }
+    
 }
 
-//====================================================================
-//=================================================( Pasteboard )=====
-//====================================================================
 
-public class Pasteboard {
+
+//============================================================
+//============================================================
+//============================================================
+
+
+
+class EZIOPasteboard {
     
     public static var hasText: Bool { UIPasteboard.general.hasStrings }
     public static var hasImage: Bool { UIPasteboard.general.hasImages }
@@ -348,5 +393,3 @@ public class Pasteboard {
         set { UIPasteboard.general.url = newValue }
     }
 }
-
-
