@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 
 
-class EZIO { 
+public class EZIO { 
     
     private init() {}
     
@@ -195,7 +195,7 @@ public struct EZIOLoadButton: View {
     private let allowedTypes: [UTType]
     private let action: (URL) -> ()
     
-    init(
+    public init(
         _ title: LocalizedStringKey, 
         bookmarkKey: String = "", 
         types: [UTType] = [.folder], 
@@ -261,7 +261,7 @@ public struct EZIOSaveButton: View {
     private let docType: UTType
     private let action: (URL) -> ()
     
-    init(
+    public init(
         _ title: LocalizedStringKey,
         defaultFilename: String,
         bookmarkKey: String = "", 
@@ -336,7 +336,7 @@ public struct EZIOSaveButton: View {
 
 
 
-class EZIOPasteboard {
+public class EZIOPasteboard {
     
     public static var hasText: Bool { UIPasteboard.general.hasStrings }
     public static var hasImage: Bool { UIPasteboard.general.hasImages }
